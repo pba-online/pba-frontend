@@ -1,0 +1,2 @@
+# Player photos live here.
+# Use photo_url from the API when available, otherwise fallback to /players/default.png
