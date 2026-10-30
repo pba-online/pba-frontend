@@ -2,22 +2,20 @@ import { useEffect, useState } from 'react'
 import api from '../../api/client'
 import PageHeader from '../../components/PageHeader'
 import GradeBadge from '../../components/GradeBadge'
-import { useAuth } from '../../context/AuthContext'
 import { unwrapList } from '../../utils/helpers'
 
 export default function TeamCoachStaff() {
-  const { user } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     api
-      .get('/coaches/staff', { params: { team_id: user?.team_id } })
+      .get('/team/coaches/staff')
       .then((res) => setRows(unwrapList(res.data)))
       .catch(() => setError('Unable to load coach/staff'))
       .finally(() => setLoading(false))
-  }, [user?.team_id])
+  }, [])
 
   return (
     <div>

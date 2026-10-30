@@ -92,6 +92,8 @@ export default function FansRoster() {
               <thead>
                 <tr>
                   <th>Player</th>
+                  <th>Position</th>
+                  <th>Height</th>
                   <th>Team</th>
                   <th>Age</th>
                   <th>Overall</th>
@@ -104,6 +106,8 @@ export default function FansRoster() {
                   return (
                     <tr key={p.id} className="clickable" onClick={() => setSelected(p)}>
                       <td>{name}</td>
+                      <td>{p.position || '—'}</td>
+                      <td>{p.height || '—'}</td>
                       <td>{p.team?.name || p.team_name || '—'}</td>
                       <td>{p.age ?? '—'}</td>
                       <td>{getRatingValue(p, 'overall') || p.overall || '—'}</td>

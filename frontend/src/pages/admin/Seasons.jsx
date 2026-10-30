@@ -11,6 +11,7 @@ export default function AdminSeasons() {
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [updatingSeasonId, setUpdatingSeasonId] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -19,7 +20,7 @@ export default function AdminSeasons() {
     try {
       const [seasonsRes, confRes] = await Promise.all([
         api.get('/seasons'),
-        api.get('/conference-types'),
+        api.get('/conferences'),
       ])
       setSeasons(unwrapList(seasonsRes.data))
       setConferences(unwrapList(confRes.data))
@@ -41,9 +42,11 @@ export default function AdminSeasons() {
     setError('')
     setSuccess('')
     try {
+      const conference = conferences.find((item) => item.id === Number(form.conference_id))
       await api.post('/seasons', {
         ...form,
         conference_id: form.conference_id ? Number(form.conference_id) : null,
+        conference_season: `${conference?.name || ''} ${form.season_year}`.trim(),
       })
       setForm(emptyForm)
       setSuccess('Season added')
@@ -52,6 +55,24 @@ export default function AdminSeasons() {
       setError(err.response?.data?.message || 'Failed to add season')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleCurrentChange(season, isCurrent) {
+    setUpdatingSeasonId(season.id)
+    setError('')
+    setSuccess('')
+    try {
+      await api.put(`/seasons/${season.id}/current`, { is_current: isCurrent })
+      setSeasons((current) => current.map((item) => ({
+        ...item,
+        is_current: isCurrent ? item.id === season.id : item.id === season.id ? false : item.is_current,
+      })))
+      setSuccess(isCurrent ? 'Current season updated' : 'Current season cleared')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Unable to update current season')
+    } finally {
+      setUpdatingSeasonId(null)
     }
   }
 
@@ -117,8 +138,8 @@ export default function AdminSeasons() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Season</th>
-                  <th>Year</th>
+                  <th>Conference season</th>
+                  <th>Season year</th>
                   <th>Conference</th>
                   <th>Current</th>
                 </tr>
@@ -126,10 +147,18 @@ export default function AdminSeasons() {
               <tbody>
                 {seasons.map((s) => (
                   <tr key={s.id}>
-                    <td>{s.season}</td>
+                    <td>{s.conference_season}</td>
                     <td>{s.season_year}</td>
-                    <td>{s.conference_name || '—'}</td>
-                    <td>{s.is_current ? '✅' : '—'}</td>
+                    <td>{conferences.find((conference) => conference.id === s.conference_id)?.name || '—'}</td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`Set ${s.conference_season || s.season_year} as current season`}
+                        checked={Boolean(s.is_current)}
+                        disabled={updatingSeasonId !== null}
+                        onChange={(event) => handleCurrentChange(s, event.target.checked)}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
