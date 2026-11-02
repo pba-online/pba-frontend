@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://pba-backend-1.onrender.com/api',
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',
