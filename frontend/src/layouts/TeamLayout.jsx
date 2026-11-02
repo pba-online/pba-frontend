@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, Navigate } from 'react-router-dom'
+import api from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { unwrapList } from '../utils/helpers'
 
 const LINKS = [
   { to: '/team', end: true, label: 'Dashboard' },
@@ -18,6 +21,26 @@ const LINKS = [
 
 export default function TeamLayout() {
   const { user, logout, isAuthenticated } = useAuth()
+  const [accountTeamName, setAccountTeamName] = useState('')
+
+  useEffect(() => {
+    if (user?.team_name || !user?.team_id) return
+    let active = true
+    api
+      .get('/teams')
+      .then((response) => {
+        const team = unwrapList(response.data).find(
+          (item) => Number(item.id) === Number(user.team_id)
+        )
+        if (active) setAccountTeamName(team?.name || '')
+      })
+      .catch(() => {
+        if (active) setAccountTeamName('')
+      })
+    return () => {
+      active = false
+    }
+  }, [user?.team_id, user?.team_name])
 
   if (!isAuthenticated) return <Navigate to="/" replace />
   if (user?.role !== 'team') {
@@ -31,6 +54,9 @@ export default function TeamLayout() {
         <div className="side-nav-brand">
           <div className="logo">PBA</div>
           <div className="sub">Team Front Office</div>
+          <div className="team-front-office-name">
+            {user?.team_name || accountTeamName || user?.name || 'Team'}
+          </div>
         </div>
         <div className="side-nav-user">{user?.name || 'Team'}</div>
         <nav>

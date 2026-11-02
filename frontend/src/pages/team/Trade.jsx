@@ -23,7 +23,7 @@ export default function TeamTrade() {
         const list = unwrapList(res.data)
         setTeams(list)
         if (user?.team_id) {
-          setSelectedTeams([user.team_id])
+          setSelectedTeams([Number(user.team_id)])
         }
       })
       .catch(() => setTeams([]))
@@ -86,7 +86,7 @@ export default function TeamTrade() {
   function toggleTeam(id) {
     setSelectedTeams((prev) => {
       if (prev.includes(id)) {
-        if (prev.length <= 2 && user?.team_id === id) return prev
+        if (prev.length <= 2 || Number(user?.team_id) === id) return prev
         return prev.filter((t) => t !== id)
       }
       if (prev.length >= 4) return prev
@@ -104,7 +104,7 @@ export default function TeamTrade() {
   }
 
   function assignPlayer(player, fromTeamId, toTeamId) {
-    if (!toTeamId || toTeamId === fromTeamId) return
+    if (toTeamId && toTeamId === fromTeamId) return
     setAllocations((prev) => {
       const next = { ...prev }
       Object.keys(next).forEach((tid) => {
@@ -113,6 +113,7 @@ export default function TeamTrade() {
           players: (next[tid].players || []).filter((id) => id !== player.id),
         }
       })
+      if (!toTeamId) return next
       next[toTeamId] = {
         players: [...(next[toTeamId]?.players || []), player.id],
         draft_picks: next[toTeamId]?.draft_picks || [],
@@ -122,7 +123,7 @@ export default function TeamTrade() {
   }
 
   function assignPick(pick, fromTeamId, toTeamId) {
-    if (!toTeamId || toTeamId === fromTeamId) return
+    if (toTeamId && toTeamId === fromTeamId) return
     setAllocations((prev) => {
       const next = { ...prev }
       Object.keys(next).forEach((tid) => {
@@ -131,6 +132,7 @@ export default function TeamTrade() {
           draft_picks: (next[tid].draft_picks || []).filter((id) => id !== pick.id),
         }
       })
+      if (!toTeamId) return next
       next[toTeamId] = {
         players: next[toTeamId]?.players || [],
         draft_picks: [...(next[toTeamId]?.draft_picks || []), pick.id],
@@ -189,7 +191,7 @@ export default function TeamTrade() {
         players,
         draft_picks,
       })
-      setSuccess('Trade submitted')
+      setSuccess('Trade proposal submitted. It will remain pending until an admin reviews it.')
       setAllocations(
         Object.fromEntries(selectedTeams.map((id) => [id, { players: [], draft_picks: [] }]))
       )
@@ -203,25 +205,32 @@ export default function TeamTrade() {
   return (
     <div>
       <PageHeader
-        title="Trade"
-        subtitle="Select 2–4 teams, then move players and draft picks between columns."
+        title="Propose a Trade"
+        subtitle="Build a proposal with up to four teams. Players and picks stay put until an admin approves it."
       />
       {error ? <div className="error-banner">{error}</div> : null}
       {success ? <div className="success-banner">{success}</div> : null}
 
-      <div className="panel" style={{ marginBottom: '1.25rem' }}>
-        <h3 style={{ fontSize: '1.4rem', marginBottom: '0.75rem', color: 'var(--blue-dark)' }}>
-          Teams in trade ({selectedTeams.length}/4)
-        </h3>
+      <div className="panel trade-team-picker">
+        <div className="trade-picker-heading">
+          <div>
+            <h2>Teams in this proposal</h2>
+            <p>Select 2–4 teams. Your team is included automatically.</p>
+          </div>
+          <span className="trade-team-count">{selectedTeams.length}/4</span>
+        </div>
         <div className="team-picker">
           {teams.map((t) => (
             <button
               key={t.id}
               type="button"
-              className={`chip${selectedTeams.includes(t.id) ? ' selected' : ''}`}
-              onClick={() => toggleTeam(t.id)}
+              className={`chip${selectedTeams.includes(Number(t.id)) ? ' selected' : ''}${
+                Number(user?.team_id) === Number(t.id) ? ' own-team' : ''
+              }`}
+              onClick={() => toggleTeam(Number(t.id))}
             >
               {t.name}
+              {Number(user?.team_id) === Number(t.id) ? ' · Your team' : ''}
             </button>
           ))}
         </div>
@@ -233,97 +242,143 @@ export default function TeamTrade() {
         <div className="loading">Loading assets…</div>
       ) : (
         <>
-          <div className="trade-board" style={{ marginBottom: '1.25rem' }}>
-            {selectedTeams.map((tid) => (
-              <div className="trade-column" key={`recv-${tid}`}>
-                <h3>Receives → {teamName(tid)}</h3>
-                {(allocations[tid]?.players || []).map((pid) => (
-                  <div className="trade-item" key={`p-${pid}`}>
-                    <span>{playerLabel(findPlayer(pid))}</span>
-                    <button type="button" onClick={() => removeFromColumn(tid, 'players', pid)}>
-                      ×
-                    </button>
-                  </div>
-                ))}
-                {(allocations[tid]?.draft_picks || []).map((pid) => (
-                  <div className="trade-item" key={`d-${pid}`}>
-                    <span>{pickLabel(findPick(pid))}</span>
-                    <button type="button" onClick={() => removeFromColumn(tid, 'draft_picks', pid)}>
-                      ×
-                    </button>
-                  </div>
-                ))}
-                {(allocations[tid]?.players || []).length === 0 &&
-                (allocations[tid]?.draft_picks || []).length === 0 ? (
-                  <div className="empty-state" style={{ padding: '1rem' }}>
-                    Drop assets here
-                  </div>
-                ) : null}
+          <section className="trade-section">
+            <div className="trade-section-heading">
+              <div>
+                <h2>Trade summary</h2>
+                <p>Review what each team receives before submitting the proposal.</p>
               </div>
-            ))}
-          </div>
+            </div>
+            <div className="trade-board trade-receive-board">
+              {selectedTeams.map((tid) => (
+                <div className="trade-column trade-receive-card" key={`recv-${tid}`}>
+                  <h3>
+                    <span className="trade-team-dot" />
+                    {teamName(tid)}
+                  </h3>
+                  <div className="trade-receive-label">Receives</div>
+                  {(allocations[tid]?.players || []).map((pid) => (
+                    <div className="trade-item" key={`p-${pid}`}>
+                      <span>
+                        <small>PLAYER</small>
+                        {playerLabel(findPlayer(pid))}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${playerLabel(findPlayer(pid))} from ${teamName(tid)}'s incoming assets`}
+                        onClick={() => removeFromColumn(tid, 'players', pid)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {(allocations[tid]?.draft_picks || []).map((pid) => (
+                    <div className="trade-item" key={`d-${pid}`}>
+                      <span>
+                        <small>DRAFT PICK</small>
+                        {pickLabel(findPick(pid))}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${pickLabel(findPick(pid))} from ${teamName(tid)}'s incoming assets`}
+                        onClick={() => removeFromColumn(tid, 'draft_picks', pid)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {(allocations[tid]?.players || []).length === 0 &&
+                  (allocations[tid]?.draft_picks || []).length === 0 ? (
+                    <div className="trade-empty-receive">No assets selected yet</div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </section>
 
-          <div className="trade-board">
-            {selectedTeams.map((tid) => (
-              <div className="trade-column" key={`src-${tid}`}>
-                <h3>{teamName(tid)} assets</h3>
-                <p style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
-                  Send player/pick to another team
-                </p>
-                {(rosters[tid] || []).map((p) => (
-                  <div className="trade-item" key={p.id}>
-                    <span>{playerLabel(p)}</span>
-                    <select
-                      defaultValue=""
-                      onChange={(e) => {
-                        assignPlayer(p, tid, Number(e.target.value))
-                        e.target.value = ''
-                      }}
-                    >
-                      <option value="">Send to…</option>
-                      {selectedTeams
-                        .filter((id) => id !== tid)
-                        .map((id) => (
-                          <option key={id} value={id}>
-                            {teamName(id)}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                ))}
-                {(picks[tid] || []).map((pk) => (
-                  <div className="trade-item" key={`pick-${pk.id}`}>
-                    <span>{pickLabel(pk)}</span>
-                    <select
-                      defaultValue=""
-                      onChange={(e) => {
-                        assignPick(pk, tid, Number(e.target.value))
-                        e.target.value = ''
-                      }}
-                    >
-                      <option value="">Send to…</option>
-                      {selectedTeams
-                        .filter((id) => id !== tid)
-                        .map((id) => (
-                          <option key={id} value={id}>
-                            {teamName(id)}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                ))}
-                {(rosters[tid] || []).length === 0 && (picks[tid] || []).length === 0 ? (
-                  <div className="empty-state" style={{ padding: '1rem' }}>
-                    No data
-                  </div>
-                ) : null}
+          <section className="trade-section">
+            <div className="trade-section-heading">
+              <div>
+                <h2>Available players and picks</h2>
+                <p>Choose which team receives each asset. The admin will review the complete proposal.</p>
               </div>
-            ))}
-          </div>
+            </div>
+            <div className="trade-board trade-asset-board">
+              {selectedTeams.map((tid) => (
+                <div className="trade-column trade-asset-card" key={`src-${tid}`}>
+                  <h3>
+                    <span className="trade-team-dot" />
+                    {teamName(tid)}
+                  </h3>
+                  <div className="trade-receive-label">Available to trade</div>
+                  {(rosters[tid] || []).length > 0 ? (
+                    <h4 className="trade-asset-subheading">Players</h4>
+                  ) : null}
+                  {(rosters[tid] || []).map((p) => (
+                    <div className="trade-item" key={p.id}>
+                      <span>
+                        <small>{p.position || 'PLAYER'}</small>
+                        {playerLabel(p)}
+                      </span>
+                      <select
+                        defaultValue=""
+                        aria-label={`Send ${playerLabel(p)} from ${teamName(tid)}`}
+                        onChange={(e) => {
+                          assignPlayer(p, tid, Number(e.target.value))
+                          e.target.value = ''
+                        }}
+                      >
+                        <option value="">Keep player</option>
+                        {selectedTeams
+                          .filter((id) => id !== tid)
+                          .map((id) => (
+                            <option key={id} value={id}>
+                              {teamName(id)}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  ))}
+                  {(picks[tid] || []).length > 0 ? (
+                    <h4 className="trade-asset-subheading">Draft picks</h4>
+                  ) : null}
+                  {(picks[tid] || []).map((pk) => (
+                    <div className="trade-item" key={`pick-${pk.id}`}>
+                      <span>
+                        <small>DRAFT PICK</small>
+                        {pickLabel(pk)}
+                      </span>
+                      <select
+                        defaultValue=""
+                        aria-label={`Send ${pickLabel(pk)} from ${teamName(tid)}`}
+                        onChange={(e) => {
+                          assignPick(pk, tid, Number(e.target.value))
+                          e.target.value = ''
+                        }}
+                      >
+                        <option value="">Keep pick</option>
+                        {selectedTeams
+                          .filter((id) => id !== tid)
+                          .map((id) => (
+                            <option key={id} value={id}>
+                              {teamName(id)}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  ))}
+                  {(rosters[tid] || []).length === 0 && (picks[tid] || []).length === 0 ? (
+                    <div className="trade-empty-receive">No players or draft picks available</div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </section>
 
-          <div style={{ marginTop: '1.25rem' }}>
+          <div className="trade-submit-bar">
+            <p>Submitting creates a pending proposal. No roster or draft-pick changes happen before approval.</p>
             <button type="button" className="btn btn-danger" onClick={submitTrade} disabled={submitting}>
-              {submitting ? 'Submitting…' : 'Submit trade'}
+              {submitting ? 'Submitting…' : 'Submit trade proposal'}
             </button>
           </div>
         </>
